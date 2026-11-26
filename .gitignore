@@ -1,0 +1,26 @@
+# 构建产物
+/bin/
+/build/
+*.obj
+*.pdb
+*.ilk
+*.exe
+*.exp
+*.lib
+
+# 生成的数据文件
+design_block.json
+design_block.json.base64
+bom_response.json
+bom_response.json.base64
+
+# Python
+__pycache__/
+*.pyc
+
+# IDE
+.vs/
+
+.vscode/
+
+qa_test/
