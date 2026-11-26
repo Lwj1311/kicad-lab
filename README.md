@@ -19,6 +19,7 @@
 ```
 kicad-lab/
 ├── CMakeLists.txt              # 构建脚本，定义 kicad_lab 静态库与可执行程序
+├── CMakePresets.json           # Ninja 的 Debug/Release 预设（含代理环境）
 ├── include/                    # 对外头文件
 │   ├── assets_content.h        # 基础数据结构（原理图/工程/PCB/元件）
 │   ├── design_block_content.h  # DESIGN_BLOCK_CONTENT 及 JSON 序列化
@@ -46,8 +47,8 @@ kicad-lab/
 
 | 依赖 | 版本 | 说明 |
 |---|---|---|
-| CMake | ≥ 3.16 | 需支持 `Visual Studio 17 2022` 或其它 C++17 工具链 |
-| C++ 编译器 | C++17 | Windows 下使用 MSVC 2022 |
+| CMake | ≥ 3.25 | 使用 `CMakePresets.json`（version 6）需要 3.25；仅手动构建 3.16 即可 |
+| C++ 编译器 | C++17 | Windows 下使用 MSVC 2022；Ninja 预设同样使用 MSVC |
 | Python | 3.8+ | 仅 BOM 联调脚本需要，标准库无第三方依赖 |
 
 第三方库已随仓库提供（`third_party/`），无需额外安装。
@@ -56,19 +57,40 @@ kicad-lab/
 
 ## 构建
 
-Windows（Visual Studio 生成器）：
+### 方式一：使用 CMakePresets（推荐）
+
+[CMakePresets.json](CMakePresets.json) 基于 Ninja，Debug / Release 使用各自独立的构建目录，并注入代理环境变量：
+
+```powershell
+cmake --preset Ninja-Debug
+cmake --build --preset "Build Debug"
+
+cmake --preset Ninja-Release
+cmake --build --preset "Build Release"
+```
+
+- 构建目录：`build/Ninja-Debug`、`build/Ninja-Release`
+- 会生成 `compile_commands.json`，便于 clangd / IDE 索引
+- Ninja 在 Windows 上需要 MSVC 开发环境（`INCLUDE` / `LIB`），请在 Visual Studio Developer PowerShell 中执行，或使用 IDE 的 CMake 集成
+- 预设中的代理地址（`127.0.0.1:51081`）是本地开发环境配置，不需要时删除 `environment` 段即可
+
+### 方式二：直接命令行
+
+Windows（Visual Studio 生成器，多配置）：
 
 ```powershell
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
 ```
 
-其它平台可直接使用默认生成器：
+其它平台（单配置生成器）：
 
 ```bash
-cmake -S . -B build
-cmake --build build --config Release
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
 ```
+
+> 单配置生成器（Ninja、Makefiles）不支持 `--config`，构建类型在配置阶段通过 `CMAKE_BUILD_TYPE` 指定。
 
 产物统一输出到 `bin/`：
 
@@ -77,7 +99,7 @@ cmake --build build --config Release
 | Release | `bin/design_block_json.exe` |
 | Debug | `bin/design_block_json_d.exe`（追加 `_d` 后缀，避免互相覆盖） |
 
-静态库 `kicad_lab.lib` 仍位于构建目录（如 `build/Release/`），这是静态库的正常位置。
+静态库 `kicad_lab.lib` 仍位于构建目录（VS 生成器在 `build/Release/`，Ninja 预设在 `build/Ninja-Release/`），这是静态库的正常位置。
 
 ---
 
@@ -281,6 +303,9 @@ powershell -ExecutionPolicy Bypass -File scripts\qa_test.ps1 -DemoDir "E:\kicad\
 
 **Q：exe 找不到了？**
 Debug 构建的产物名是 `design_block_json_d.exe`；两者都在 `bin/` 下。
+
+**Q：`cmake --preset Ninja-Debug` 提示找不到 `cl.exe`？**
+Ninja 不会自动加载 MSVC 环境。请在 Visual Studio Developer PowerShell 中运行，或改用 Visual Studio 生成器（方式二）。
 
 **Q：PowerShell 执行脚本报中文乱码/语法错误？**
 用 `-ExecutionPolicy Bypass` 运行，并确认脚本保存为 UTF-8 with BOM。
